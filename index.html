@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <title>Gastos+</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <!-- PWA status bar color -->
+  <meta name="theme-color" content="#1e1e1e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Caveat&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=1.4.7">
+
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180x180.png">
+  <link rel="manifest" href="site.webmanifest">
+</head>
+<body>
+  <div id="backdrop-base"></div>
+  <template id="add-button-template">
+    <button class="add-button">Adicionar</button>
+  </template>
+  <header class="app-header">
+    <div class="logo-title">
+      <span class="logo-text">Gastos+</span>
+    </div>
+    <span id="offlineIndicator" class="offline-icon" hidden>📴</span>
+
+    <!-- Header segmented control (icons only) -->
+    <div class="header-seg" role="tablist" aria-label="Atalhos do topo" data-selected="planned">
+      <button type="button" class="seg-option icon-calendar" data-action="planned" role="tab" aria-selected="true" aria-controls="plannedModal" title="Planejados"></button>
+      <button type="button" class="seg-option icon-creditcard" data-action="cards" role="tab" aria-selected="false" aria-controls="cardModal" title="Gerenciar cartões"></button>
+    </div>
+
+    <!-- Mantidos para compatibilidade com o JS existente (ficam invisíveis) -->
+    <button id="openPlannedBtn" class="floating-planned-button legacy-hidden" title="Planejados">📅</button>
+    <button id="openCardModal" class="floating-card-button legacy-hidden" title="Gerenciar cartões">💳</button>
+  </header>
+
+  <div class="wrapper app-hidden main-panel">
+
+    <!-- Saldo inicial -->
+    <div id="startGroup" class="start-container">
+      <h2 class="modal-title">Saldo inicial</h2>
+      <div class="start-input-row">
+        <input id="startInput" name="startInput" type="text" placeholder="R$ 0,00" class="currency-input" />
+        <button id="setStartBtn" class="add-button">OK</button>
+      </div>
+    </div>
+    <hr class="divider" id="dividerSaldo">
+
+    <!-- Tabela & Acordeão -->
+    <div>
+      <div class="table-wrapper">
+        <table id="dailyTable">
+          <thead>
+            <tr><th>Data</th><th>Descrição</th><th>Gasto</th><th>Saldo</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="accordion"></div>
+      <button id="resetData" class="danger" style="margin-top:12px" hidden>Limpar tudo</button>
+    </div>
+    <hr class="divider">
+  </div>
+
+  <!-- Modal Cartões -->
+  <div id="cardModal" class="bottom-modal backdrop-blur hidden">
+    <div class="bottom-modal-box">
+      <div class="modal-drag"></div>
+      <h2>Novo Cartão</h2>
+      <button id="closeCardModal" class="modal-close-btn" aria-label="Fechar">✕</button>
+
+      <input id="cardName" name="cardName" placeholder="Nome">
+      <div class="card-dates">
+        <input id="cardClose" name="cardClose" type="number" min="1" max="31" placeholder="Fechamento">
+        <input id="cardDue" name="cardDue" type="number" min="1" max="31" placeholder="Vencimento">
+      </div>
+      <button id="addCardBtn" class="add-button">Adicionar</button>
+      <small>Fechamento define a fatura.</small>
+
+      <ul id="cardList" class="card-list"></ul>
+
+    </div>
+  </div>
+
+  <!-- Modal Transações -->
+  <div id="txModal" class="bottom-modal backdrop-blur hidden">
+    <div class="bottom-modal-box">
+      <div class="modal-drag"></div>
+      <h2>Lançar operação</h2>
+      <button id="closeTxModal" class="modal-close-btn" aria-label="Fechar">✕</button>
+      <div class="form-grid">
+        <div class="value-input-wrapper">
+          <input
+            id="value"
+            name="value"
+            type="tel"
+            placeholder="Valor"
+            inputmode="decimal"
+            pattern="[0-9]*"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+          />
+          <div class="value-toggle">
+            <button type="button" data-type="expense" class="active">↓</button>
+            <button type="button" data-type="income">↑</button>
+          </div>
+        </div>
+        <input id="desc" name="desc" placeholder="Descrição">
+        <!-- hidden original select to retain data binding -->
+        <select id="method" name="method" hidden></select>
+        <div class="method-switch">
+          <div class="switch-highlight"></div>
+          <button type="button" data-method="Dinheiro" class="switch-option active">Dinheiro</button>
+          <button type="button" data-method="Cartão" class="switch-option">Cartão</button>
+        </div>
+        <div id="cardSelector" class="form-row" hidden></div>
+        <select id="recurrence" name="recurrence">
+          <option value="">Nenhuma (única)</option>
+          <option value="D">Diário</option>
+          <option value="W">Semanal</option>
+          <option value="BW">Bi-Semanal</option>
+          <option value="M">Mensal</option>
+          <option value="Q">A cada 3 meses</option>
+          <option value="S">A cada 6 meses</option>
+          <option value="Y">Anual</option>
+        </select>
+        <!-- Parcelas (visível somente se método ≠ Dinheiro) -->
+        <div id="parcelasBlock" class="hidden">
+          <select id="installments" name="installments">
+            <!-- options 1‑24 serão criadas via JS -->
+          </select>
+        </div>
+        <div class="date-input-wrapper">
+          <input id="opDate" name="opDate" type="date">
+        </div>
+        <button id="addBtn" class="add-button">Adicionar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Planejados -->
+  <div id="plannedModal" class="bottom-modal backdrop-blur hidden">
+    <div class="bottom-modal-box">
+      <div class="modal-drag"></div>
+      <h2>Planejados</h2>
+      <button id="closePlannedModal" class="modal-close-btn" aria-label="Fechar">✕</button>
+      <div class="modal-content">
+        <ul id="plannedList" class="planned-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Excluir Recorrência -->
+  <div id="deleteRecurrenceModal" class="bottom-modal backdrop-blur hidden">
+    <div class="bottom-modal-box">
+      <div class="modal-drag"></div>
+      <h2>Excluir recorrência</h2>
+      <button id="closeDeleteRecurrenceModal" class="modal-close-btn" aria-label="Fechar">✕</button>
+      <div class="form-grid">
+        <button id="deleteSingleBtn" class="action-btn">Somente esta</button>
+        <button id="deleteFutureBtn" class="action-btn">Esta e futuras</button>
+        <button id="deleteAllBtn" class="action-btn">Todas</button>
+        <button id="cancelDeleteRecurrence" class="action-btn cancel-btn">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Editar Recorrência -->
+  <div id="editRecurrenceModal" class="bottom-modal backdrop-blur hidden">
+    <div class="bottom-modal-box">
+      <div class="modal-drag"></div>
+      <h2>Editar recorrência</h2>
+      <button id="closeEditRecurrenceModal" class="modal-close-btn" aria-label="Fechar">✕</button>
+      <div class="form-grid">
+        <button id="editSingleBtn" class="action-btn">Somente esta</button>
+        <button id="editFutureBtn" class="action-btn">Esta e futuras</button>
+        <button id="editAllBtn" class="action-btn">Todas</button>
+        <button id="cancelEditRecurrence" class="action-btn cancel-btn">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <button id="openTxModal" class="floating-add-button" title="Nova operação">＋</button>
+
+  <script type="module" src="main.js?v=1.4.7"></script>
+  <!-- Styles moved to style.css -->
+
+  <!-- Toast de erro -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Scripts moved to main.js -->
+  <footer class="app-footer"><small id="version">v1.4.7</small></footer>
+</body>
+</html>
