@@ -1,4 +1,4 @@
-const CACHE = 'v5';   // bump para nova versão
+const CACHE = 'robini_v6';   // bump para nova versão
 const ASSETS = [
   './',
   './index.html',

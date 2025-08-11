@@ -275,8 +275,9 @@ if (!USE_MOCK) {
   const db   = getDatabase(app);
   firebaseDb = db;
 
-  // Mesmo caminho de DB para ambos os ambientes
-  PATH = 'orcamento365_9b8e04c5';
+  // Caminho de DB exclusivo deste deploy
+  // Evita herdar dados de outros projetos ao reutilizar o mesmo código
+  PATH = 'orcamento365_robini_1080376035751';
 
   const auth = getAuth(app);
   await signInAnonymously(auth);
@@ -294,10 +295,39 @@ if (!USE_MOCK) {
     JSON.parse(localStorage.getItem(`${PATH}_${k}`)) ?? d;
 }
 
+// Inicializa estrutura padrão no Firebase se PATH estiver vazio
+(async function initDbIfEmpty(){
+  if (!USE_MOCK) {
+    try {
+      const defaultData = {
+        cards: [{ name: "Dinheiro", close: 0, due: 0 }],
+        startBal: 0,
+        tx: []
+      };
+      const snapshot = await load(PATH, null);
+      if (!snapshot) {
+        await save(PATH, defaultData);
+        console.info(`Estrutura inicial criada no Firebase para ${PATH}`);
+      }
+    } catch(e) {
+      console.error('Falha ao inicializar estrutura padrão', e);
+    }
+  }
+})();
+
+// Namespace por PATH e migração de chaves antigas
+const cacheKey = (k) => `cache_${PATH}_${k}`;
+(function migrateLegacyCacheOnce(){
+  const MIG_FLAG = `cache_${PATH}_migrated`;
+  if (localStorage.getItem(MIG_FLAG) !== '1') {
+    ['cache_cards','cache_startBal','cache_tx','cache_txQueue'].forEach(k => localStorage.removeItem(k));
+    localStorage.setItem(MIG_FLAG, '1');
+  }
+})();
 
 // Cache local (LocalStorage) p/ boot instantâneo
-const cacheGet  = (k, d) => JSON.parse(localStorage.getItem(`cache_${k}`)) ?? d;
-const cacheSet  = (k, v) => localStorage.setItem(`cache_${k}`, JSON.stringify(v));
+const cacheGet  = (k, d) => JSON.parse(localStorage.getItem(cacheKey(k))) ?? d;
+const cacheSet  = (k, v) => localStorage.setItem(cacheKey(k), JSON.stringify(v));
 
 // ---------------- Offline queue helpers ----------------
 // Badge on the ⟳ sync button shows how many items are waiting
@@ -362,8 +392,29 @@ transactions = transactions.map(t => ({
 }));
 cacheSet('tx', transactions);
 sortTransactions();
+
+// Em PROD, sobrepõe com dados do Firebase para evitar lixo do LS compartilhado
+if (!USE_MOCK) {
+  try {
+    const remoteCards = await load('cards', null);
+    if (Array.isArray(remoteCards)) {
+      localStorage.setItem(cacheKey('cards'), JSON.stringify(remoteCards));
+    }
+  } catch(e) { console.warn('cards load failed', e); }
+  try {
+    const remoteStart = await load('startBal', null);
+    if (remoteStart !== null && remoteStart !== undefined) {
+      localStorage.setItem(cacheKey('startBal'), JSON.stringify(remoteStart));
+    }
+  } catch(e) { console.warn('startBal load failed', e); }
+}
+
 let cards         = cacheGet('cards', [{name:'Dinheiro',close:0,due:0}]);
 let startBalance  = cacheGet('startBal', null);
+
+// Sincroniza variáveis com possíveis valores remotos carregados acima
+cards = cacheGet('cards', cards);
+startBalance = cacheGet('startBal', startBalance);
 const $=id=>document.getElementById(id);
 const tbody=document.querySelector('#dailyTable tbody');
 const wrapperEl = document.querySelector('.wrapper');
@@ -721,6 +772,11 @@ recurrence.onchange = () => {
 let isEditing = null;
 const cardName=$('cardName'),cardClose=$('cardClose'),cardDue=$('cardDue'),addCardBtn=$('addCardBtn'),cardList=$('cardList');
 const startGroup=$('startGroup'),startInput=$('startInput'),setStartBtn=$('setStartBtn'),resetBtn=$('resetData');
+// --- Limpar tudo (reset all data) button handler ---
+// Ensure the resetData button is always visible and binds the click event
+if (document.getElementById('resetData')) {
+  document.getElementById('resetData').addEventListener('click', clearAllData);
+}
 // Auto-format initial balance input as BRL currency
 if (startInput) {
   startInput.addEventListener('input', () => {
