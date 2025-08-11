@@ -772,11 +772,6 @@ recurrence.onchange = () => {
 let isEditing = null;
 const cardName=$('cardName'),cardClose=$('cardClose'),cardDue=$('cardDue'),addCardBtn=$('addCardBtn'),cardList=$('cardList');
 const startGroup=$('startGroup'),startInput=$('startInput'),setStartBtn=$('setStartBtn'),resetBtn=$('resetData');
-// --- Limpar tudo (reset all data) button handler ---
-// Ensure the resetData button is always visible and binds the click event
-if (document.getElementById('resetData')) {
-  document.getElementById('resetData').addEventListener('click', clearAllData);
-}
 // Auto-format initial balance input as BRL currency
 if (startInput) {
   startInput.addEventListener('input', () => {
@@ -793,6 +788,13 @@ if (startInput) {
 }
 const startContainer = document.querySelector('.start-container');
 const dividerSaldo = document.getElementById('dividerSaldo');
+
+// Ensure "Limpar tudo" button is always visible
+if (resetBtn) {
+  resetBtn.hidden = false;
+  resetBtn.style.display = '';
+  resetBtn.classList.remove('hidden');
+}
 
 const showToast = (msg, type = 'error') => {
   const t = document.getElementById('toast');
